@@ -6,12 +6,24 @@ import yt_dlp
 
 BASE_PATH = pathlib.Path('.')
 
+YDL_OTPS = {
+            "format": "bestaudio",
+            "outtmpl": "audios/%(id)s.%(ext)s",
+            "quiet":True,
+            "download_archive": "downloaded.txt",
+            "postprocess": [{
+                "key":"FFmpegExtractAudio",
+                 "preferredcodec":"wav",
+                 "prefferedquality":"192",
+            }]
+}
+
 def pull_metadata() -> dict:
     try:
         youtube = googleapiclient.discovery.build(serviceName="youtube", version="v3", developerKey=os.environ.get("google_cloud_api_key"))
         req = youtube.search().list(
             part="snippet",
-            maxResults=1,
+            maxResults=3,
             videoLicense="creativeCommon",
             q="english lessons",
             type="video",
@@ -38,13 +50,18 @@ def get_urls(data: dict) -> list:
 
 def download_audios(urls: list) -> None:
     AUDIO_PATH = BASE_PATH / 'audios'
-    if AUDIO_PATH.exists() == False:
+    if AUDIO_PATH.exists() == False or AUDIO_PATH.is_dir() == False:
         q = str(input("Do you want to create folder for audios(Y/n)"))
         if q == "Y":
             AUDIO_PATH.mkdir()
         elif q == "n":
             print("Canceling installation")
             sys.exit(1)
+        else:
+            print("Something went wrong")
+            sys.exit(2)
+    with yt_dlp.YoutubeDL(YDL_OTPS) as ydl:
+        ydl.download(urls)
     return
 
 
