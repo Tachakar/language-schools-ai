@@ -3,20 +3,36 @@ import os
 import pathlib
 import googleapiclient.discovery
 import yt_dlp
+import whisper
+import pprint
 
 BASE_PATH = pathlib.Path('.')
+AUDIO_PATH = BASE_PATH / 'audios'
+TRANSCRIPT_PATH = BASE_PATH / 'transcripts'
 
 YDL_OTPS = {
             "format": "bestaudio",
             "outtmpl": "audios/%(id)s.%(ext)s",
             "quiet":True,
             "download_archive": "downloaded.txt",
-            "postprocess": [{
+            "postprocessors": [{
                 "key":"FFmpegExtractAudio",
                  "preferredcodec":"wav",
-                 "prefferedquality":"192",
             }]
 }
+
+def check_path(path):
+    if path.exists() == False or path.is_dir() == False:
+        q = str(input(f"Do you want to create folder for {path.name}(Y/n)"))
+        if q == "Y":
+            path.mkdir()
+            return True
+        elif q == "n":
+            print("Canceling installation")
+            return False
+        else:
+            print("Something went wrong")
+            return False
 
 def pull_metadata() -> dict:
     try:
@@ -49,26 +65,25 @@ def get_urls(data: dict) -> list:
     return []
 
 def download_audios(urls: list) -> None:
-    AUDIO_PATH = BASE_PATH / 'audios'
-    if AUDIO_PATH.exists() == False or AUDIO_PATH.is_dir() == False:
-        q = str(input("Do you want to create folder for audios(Y/n)"))
-        if q == "Y":
-            AUDIO_PATH.mkdir()
-        elif q == "n":
-            print("Canceling installation")
-            sys.exit(1)
-        else:
-            print("Something went wrong")
-            sys.exit(2)
+    if check_path(path=AUDIO_PATH) == False:
+        return
     with yt_dlp.YoutubeDL(YDL_OTPS) as ydl:
         ydl.download(urls)
-    return
 
+def make_transcripts():
+    if check_path(path=TRANSCRIPT_PATH) == False:
+        return
+    model = whisper.load_model(name='tiny.en')
+    for wav_file in AUDIO_PATH.iterdir():
+        result = model.transcribe(str(wav_file.absolute()))
+        print(result["text"])
+        return
 
 if __name__ == "__main__":
     try:
         data = pull_metadata()
         urls = get_urls(data=data)
         download_audios(urls=urls)
+        make_transcripts()
     except Exception as e:
         print(f"Something went wrong.\n{e}")
