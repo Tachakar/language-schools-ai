@@ -4,16 +4,15 @@ import pathlib
 import googleapiclient.discovery
 import yt_dlp
 import whisper
-import pprint
 
 BASE_PATH = pathlib.Path('.')
 AUDIO_PATH = BASE_PATH / 'audios'
 TRANSCRIPT_PATH = BASE_PATH / 'transcripts'
 
-YDL_OTPS = {
+YDL_OPTS = {
             "format": "bestaudio",
             "outtmpl": "audios/%(id)s.%(ext)s",
-            "quiet":True,
+            "quiet":False,
             "download_archive": "downloaded.txt",
             "postprocessors": [{
                 "key":"FFmpegExtractAudio",
@@ -21,35 +20,31 @@ YDL_OTPS = {
             }]
 }
 
-def check_path(path):
-    if path.exists() == False or path.is_dir() == False:
-        q = str(input(f"Do you want to create folder for {path.name}(Y/n)"))
-        if q == "Y":
-            path.mkdir()
-            return True
-        elif q == "n":
-            print("Canceling installation")
-            return False
-        else:
-            print("Something went wrong")
-            return False
+MAX_RESULTS = 3
+VIDEO_LICENSE = "creativeCommon"
+Q = "english lessons"
+def check_api_key() -> None:
+    if os.environ.get("YOUTUBE_API_KEY", None) == None:
+        sys.exit("Coulnd't get youtube api key")
 
-def pull_metadata() -> dict:
+def check_path(path:pathlib.Path) -> None:
+    path.mkdir(parents=True, exist_ok=True)
+
+def fetch_youtube_metadata() -> dict:
     try:
-        youtube = googleapiclient.discovery.build(serviceName="youtube", version="v3", developerKey=os.environ.get("google_cloud_api_key"))
+        youtube = googleapiclient.discovery.build(serviceName="youtube", version="v3", developerKey=os.environ.get("YOUTUBE_API_KEY"))
         req = youtube.search().list(
             part="snippet",
-            maxResults=3,
-            videoLicense="creativeCommon",
-            q="english lessons",
+            maxResults=MAX_RESULTS,
+            videoLicense=VIDEO_LICENSE,
+            q=Q,
             type="video",
             videoDuration="medium",
         )
         print("Metadata pulled")
         return req.execute()
     except Exception as e:
-        print(f"Something went wrong while pulling metadata, ErrorMessage: {e}")
-        return {}
+        sys.exit(f"Something went wrong in fetch_api. Message: {e}")
 
 def get_urls(data: dict) -> list:
     videos = data.get('items', None)
@@ -64,26 +59,26 @@ def get_urls(data: dict) -> list:
     print("Something went wrong in get_urls()")
     return []
 
-def download_audios(urls: list) -> None:
-    if check_path(path=AUDIO_PATH) == False:
-        return
-    with yt_dlp.YoutubeDL(YDL_OTPS) as ydl:
+def download_wav_files(urls: list) -> None:
+    if urls == []:
+        sys.exit("URLs list is empty")
+    check_path(path=AUDIO_PATH)
+    with yt_dlp.YoutubeDL(YDL_OPTS) as ydl:
         ydl.download(urls)
 
 def make_transcripts():
-    if check_path(path=TRANSCRIPT_PATH) == False:
-        return
-    model = whisper.load_model(name='tiny.en')
+    check_path(path=TRANSCRIPT_PATH)
+    model = whisper.load_model(name='medium.en')
     for wav_file in AUDIO_PATH.iterdir():
         result = model.transcribe(str(wav_file.absolute()))
         print(result["text"])
-        return
 
 if __name__ == "__main__":
     try:
-        data = pull_metadata()
+        check_api_key()
+        data = fetch_youtube_metadata()
         urls = get_urls(data=data)
-        download_audios(urls=urls)
+        download_wav_files(urls=urls)
         make_transcripts()
     except Exception as e:
         print(f"Something went wrong.\n{e}")
