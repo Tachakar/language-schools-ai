@@ -3,7 +3,7 @@ import os
 import pathlib
 import googleapiclient.discovery
 import yt_dlp
-import whisper
+from faster_whisper import WhisperModel
 
 BASE_PATH = pathlib.Path('.')
 AUDIO_PATH = BASE_PATH / 'audios'
@@ -23,6 +23,8 @@ YDL_OPTS = {
 MAX_RESULTS = 3
 VIDEO_LICENSE = "creativeCommon"
 Q = "english lessons"
+
+
 def check_api_key() -> None:
     if os.environ.get("YOUTUBE_API_KEY", None) == None:
         sys.exit("Coulnd't get youtube api key")
@@ -68,10 +70,13 @@ def download_wav_files(urls: list) -> None:
 
 def make_transcripts():
     check_path(path=TRANSCRIPT_PATH)
-    model = whisper.load_model(name='medium.en')
+    model = WhisperModel("large-v2", device='cuda')
+    results = []
     for wav_file in AUDIO_PATH.iterdir():
-        result = model.transcribe(str(wav_file.absolute()))
-        print(result["text"])
+        result, _ = model.transcribe(str(wav_file.absolute()))
+        for segment in result:
+            print("[%.2fs -> %.2fs] %s" % (segment.start, segment.end, segment.text))
+
 
 if __name__ == "__main__":
     try:

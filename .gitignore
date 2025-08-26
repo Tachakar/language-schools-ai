@@ -2,3 +2,4 @@
 audios/
 transcripts/
 downloaded.txt
+*.deb
