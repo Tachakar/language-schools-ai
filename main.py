@@ -26,6 +26,28 @@ MAX_RESULTS = 3
 VIDEO_LICENSE = "creativeCommon"
 QUERY = "english lessons"
 
+class RawSegment:
+    def __init__(self, start_s:float, end_s:float, text:str, id:str):
+        self.start_s = start_s
+        self.end_s = end_s
+        self.segment_id = id
+        self.text = text
+
+    def get_id(self):
+        return self.segment_id
+
+    def get_text(self):
+        return self.text
+
+    def __str__(self):
+        return f"start: {self.start_s}s\nend: {self.end_s}s\ntext:{self.text}"
+
+
+class CleanSegment(RawSegment):
+    def __init__(self, start_s:float, end_s:float,text:str,id:str,speaker:str,tag:str):
+        super().__init__(start_s,end_s,text,id)
+        self.speaker = speaker
+        self.tag = tag
 
 def check_api_key() -> None:
     if os.environ.get("YOUTUBE_API_KEY", None) == None:
@@ -84,6 +106,9 @@ def make_transcripts():
             segments, _ = model.transcribe(str(wav_file.absolute()), language='en')
             for segment in segments:
                 raw_txt_file.write("[%.2f:%.2f] %s \n" % (segment.start, segment.end, segment.text))
+                new_raw_segment = RawSegment(segment.start, segment.end, segment.text, id=vid_id)
+                new_clean_segment = CleanSegment(segment.start, segment.end, segment.text, vid_id, "", "")
+            print(f"Finished {wav_file.name} transcription")
 
 if __name__ == "__main__":
     try:
